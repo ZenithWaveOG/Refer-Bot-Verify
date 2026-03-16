@@ -1,97 +1,128 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verification</title>
     <style>
         body {
-            margin: 0;
-            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            font-family: 'Segoe UI', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            margin: 0;
             color: white;
         }
         .container {
             text-align: center;
             background: rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
-            border-radius: 20px;
             padding: 40px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            width: 300px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            max-width: 400px;
         }
-        h1 { font-size: 24px; margin-bottom: 20px; }
-        .verify-btn {
-            background: linear-gradient(45deg, #FF416C, #FF4B2B);
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+        button {
+            background: white;
+            color: #764ba2;
             border: none;
-            color: white;
             padding: 15px 40px;
-            font-size: 18px;
+            font-size: 1.2em;
             border-radius: 50px;
             cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
             font-weight: bold;
-            margin-top: 20px;
         }
-        .status { margin-top: 20px; }
-        .loader { display: none; border: 4px solid #f3f3f3; border-top: 4px solid white; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .status {
+            margin-top: 20px;
+            font-size: 1.1em;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔐 Secure Verification</h1>
-        <div class="loader" id="loader"></div>
-        <button class="verify-btn" id="verifyBtn" onclick="verify()">VERIFY NOW</button>
-        <div class="status" id="status">Click the button to continue</div>
+        <h1>🔐 Verification Required</h1>
+        <p>Click the button below to verify your identity. This device will be linked to your Telegram account.</p>
+        <button id="verifyBtn">VERIFY NOW</button>
+        <div class="status" id="status"></div>
     </div>
 
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
-
-        function generateFingerprint() {
-            let fp = localStorage.getItem('device_fp');
-            if (fp) return fp;
-
+        // Generate a consistent device fingerprint
+        async function getDeviceId() {
             const canvas = document.createElement('canvas');
-            canvas.width = 200;
-            canvas.height = 50;
             const ctx = canvas.getContext('2d');
             ctx.textBaseline = "top";
-            ctx.font = "14px Arial";
+            ctx.font = "14px 'Arial'";
             ctx.fillStyle = "#f60";
-            ctx.fillRect(125, 1, 62, 20);
+            ctx.fillRect(125,1,62,20);
             ctx.fillStyle = "#069";
-            ctx.font = "16px Arial";
-            ctx.fillText("Telegram", 2, 15);
-            ctx.fillStyle = "rgba(102,204,0,0.7)";
-            ctx.font = "18px Arial";
-            ctx.fillText("Verify", 4, 30);
+            ctx.fillText("BrowserFingerprint", 2, 15);
+            const fingerprint = canvas.toDataURL();
+            
+            // Combine with additional entropy
+            const userAgent = navigator.userAgent;
+            const screenRes = `${screen.width}x${screen.height}x${screen.colorDepth}`;
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const data = fingerprint + userAgent + screenRes + timeZone;
+            
+            // Hash it (simple SHA-256 via browser crypto)
+            const msgBuffer = new TextEncoder().encode(data);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
 
-            const canvasData = canvas.toDataURL();
-            let hash = 0;
-            for (let i = 0; i < canvasData.length; i++) {
-                hash = ((hash << 5) - hash) + canvasData.charCodeAt(i);
-                hash |= 0;
+        document.getElementById('verifyBtn').addEventListener('click', async () => {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerText = 'Verifying...';
+            
+            // Get URL parameters (user_id from Telegram deep link)
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('user_id');
+            if (!userId) {
+                statusDiv.innerText = '❌ Error: No user ID provided.';
+                return;
             }
-            const newFp = hash.toString(36) + '-' + Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('device_fp', newFp);
-            return newFp;
-        }
-
-        function verify() {
-            document.getElementById('loader').style.display = 'block';
-            document.getElementById('status').innerText = 'Generating fingerprint...';
-            const fingerprint = generateFingerprint();
-            tg.sendData(JSON.stringify({ fingerprint: fingerprint }));
-            document.getElementById('status').innerText = 'Verifying...';
-        }
+            
+            const deviceId = await getDeviceId();
+            
+            // Call your bot's verification endpoint
+            try {
+                const response = await fetch('https://autoearnx-refer-bot.onrender.com/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: parseInt(userId), device_id: deviceId })
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    statusDiv.innerText = '✅ You are verified! Redirecting to bot...';
+                    setTimeout(() => {
+                        window.location.href = `https://t.me/Sheinnn_Refer_Bot?start`;
+                    }, 2000);
+                } else {
+                    statusDiv.innerText = '❌ ' + result.message;
+                }
+            } catch (error) {
+                statusDiv.innerText = '❌ Verification failed. Check console.';
+                console.error(error);
+            }
+        });
     </script>
 </body>
 </html>
