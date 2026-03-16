@@ -71,40 +71,35 @@
                 const deviceId = await getDeviceId();
                 console.log('Device ID:', deviceId);
 
-                // Create a promise that rejects after 10 seconds
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                // Prepare the payload as a proper JSON object
+                const payload = {
+                    user_id: parseInt(userId),
+                    device_id: deviceId
+                };
 
                 const response = await fetch(BOT_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: parseInt(userId), device_id: deviceId }),
-                    signal: controller.signal
+                    body: JSON.stringify(payload)  // This creates valid JSON with double quotes
                 });
-                clearTimeout(timeoutId);
 
                 const result = await response.json();
                 if (result.status === 'success') {
                     setStatus('✅ Verified! Redirecting to bot...', 'success');
                     setTimeout(() => window.location.href = `https://t.me/${BOT_USERNAME}`, 2000);
                 } else {
-                    // Show "Authorized Declined" for device used error
+                    // Show specific error message from server
                     if (result.message && result.message.includes('Device already used')) {
                         setStatus('❌ Authorized Declined: Device already used.', 'error');
                     } else {
                         setStatus('❌ ' + (result.message || 'Verification failed.'), 'error');
                     }
-                    btn.disabled = false;
                 }
             } catch (err) {
                 console.error('Fetch error:', err);
-                if (err.name === 'AbortError') {
-                    setStatus('❌ Request timed out. Check your bot URL or network.', 'error');
-                } else {
-                    setStatus('❌ Network error. Check console.', 'error');
-                }
-                btn.disabled = false;
+                setStatus('❌ Network error. Check console.', 'error');
             } finally {
+                btn.disabled = false;
                 showLoader(false);
             }
         });
