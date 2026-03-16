@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Device Verification</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
@@ -10,7 +13,7 @@
         h1 { color: #333; font-size: 2em; margin-bottom: 20px; }
         .btn { background: #667eea; color: white; border: none; padding: 15px 40px; font-size: 1.2em; border-radius: 50px; cursor: pointer; width: 100%; margin-bottom: 20px; }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .status { padding: 15px; border-radius: 10px; margin-top: 20px; display: none; }
+        .status { padding: 15px; border-radius: 10px; margin-top: 20px; display: none; word-break: break-word; }
         .success { background: #d4edda; color: #155724; display: block; }
         .error { background: #f8d7da; color: #721c24; display: block; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
@@ -27,9 +30,11 @@
     </div>
 
     <script>
-        const BOT_API_URL = 'https://autoearnx-refer-bot.onrender.com/verify';
-        const BOT_USERNAME = 'Sheinnn_Refer_Bot';
+        // ========== CONFIG ==========
+        const BOT_API_URL = 'https://autoearnx-refer-bot.onrender.com/verify';   // CHANGE THIS
+        const BOT_USERNAME = 'Sheinnn_Refer_Bot';                  // CHANGE THIS
 
+        // ========== Device fingerprint ==========
         async function getDeviceId() {
             const canvas = document.createElement('canvas');
             canvas.width = 200; canvas.height = 50;
@@ -42,6 +47,7 @@
             return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
         }
 
+        // ========== Main ==========
         document.getElementById('verifyBtn').addEventListener('click', async () => {
             const btn = document.getElementById('verifyBtn');
             const statusDiv = document.getElementById('status');
@@ -62,11 +68,16 @@
 
             try {
                 const deviceId = await getDeviceId();
+                // Build payload correctly
+                const payload = { user_id: parseInt(userId), device_id: deviceId };
+                console.log('Sending payload:', payload); // Check console
+
                 const response = await fetch(BOT_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: parseInt(userId), device_id: deviceId })
+                    body: JSON.stringify(payload)  // This ensures proper JSON
                 });
+
                 const result = await response.json();
                 if (result.status === 'success') {
                     statusDiv.className = 'status success';
@@ -77,7 +88,7 @@
                     statusDiv.innerText = '❌ ' + (result.message || 'Verification failed');
                 }
             } catch (err) {
-                console.error(err);
+                console.error('Fetch error:', err);
                 statusDiv.className = 'status error';
                 statusDiv.innerText = '❌ Network error. Check console.';
             } finally {
